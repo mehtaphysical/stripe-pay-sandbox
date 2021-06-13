@@ -5,6 +5,7 @@ use near_contract_standards::fungible_token::FungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedMap};
 use near_sdk::json_types::{ValidAccountId, U128};
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
     env, near_bindgen, AccountId, Balance, BorshStorageKey, PanicOnDefault, PromiseOrValue,
 };
@@ -13,7 +14,8 @@ near_sdk::setup_alloc!();
 
 type StripeIntentId = String;
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, Deserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct StripeIntent {
     account_id: AccountId,
     intent_id: StripeIntentId,
@@ -25,7 +27,7 @@ pub struct StripeIntent {
 pub struct Contract {
     owner_id: AccountId,
     token: FungibleToken,
-    intents: UnorderedMap<AccountId, StripeIntent>,
+    intents: UnorderedMap<AccountId, Vec<StripeIntent>>,
     metadata: LazyOption<FungibleTokenMetadata>,
 }
 
@@ -67,18 +69,16 @@ impl Contract {
             "Only owner can mint"
         );
 
-        let stripe_intent = self.intents.get(&account_id.to_string());
-        let to_mint = match stripe_intent {
-            None => intent_balance,
-            Some(si) => {
-                assert_eq!(intent_id, si.intent_id, "Intent already exists");
-                assert!(
-                    intent_balance > si.intent_balance,
-                    "Cannot decrease intent balance"
-                );
-                intent_balance - si.intent_balance
-            }
-        };
+        let mut stripe_intents = self
+            .intents
+            .get(&account_id.to_string())
+            .unwrap_or(Vec::new());
+
+        stripe_intents.push(StripeIntent {
+            account_id: account_id.to_string(),
+            intent_id,
+            intent_balance,
+        });
 
         match self.token.accounts.get(&account_id.to_string()) {
             None => {
@@ -89,26 +89,10 @@ impl Contract {
         }
 
         self.token
-            .internal_deposit(&account_id.to_string(), to_mint);
-        self.intents.insert(
-            &account_id.to_string(),
-            &StripeIntent {
-                account_id: account_id.to_string(),
-                intent_id,
-                intent_balance,
-            },
-        );
+            .internal_deposit(&account_id.to_string(), intent_balance);
+        self.intents
+            .insert(&account_id.to_string(), &stripe_intents);
     }
-
-    // pub fn intents_to_execute(&self) -> Vec<StripeIntent> {
-    //     self.intents
-    //         .values()
-    //         .filter(|intent| {
-    //             let balance = self.token.accounts.get(&intent.account_id).unwrap();
-    //             balance < intent.intent_balance
-    //         })
-    //         .collect()
-    // }
 }
 
 near_contract_standards::impl_fungible_token_core!(Contract, token);
@@ -163,48 +147,31 @@ mod tests {
         let mut contract = Contract::new();
 
         contract.mint(accounts(1), "intent-id".to_string(), 100);
-        assert_eq!(
+
+        let a = assert_eq!(
             contract
                 .intents
                 .get(&accounts(1).into())
+                .unwrap()
+                .first()
                 .unwrap()
                 .intent_balance,
             100
         );
         assert_eq!(contract.token.ft_balance_of(accounts(1)).0, 100);
 
-        contract.mint(accounts(1), "intent-id".to_string(), 500);
+        contract.mint(accounts(1), "intent-id-2".to_string(), 500);
         assert_eq!(
             contract
                 .intents
                 .get(&accounts(1).into())
                 .unwrap()
+                .get(1)
+                .unwrap()
                 .intent_balance,
             500
         );
-        assert_eq!(contract.token.ft_balance_of(accounts(1)).0, 500);
-    }
-
-    #[test]
-    #[should_panic(expected = "Intent already exists")]
-    fn test_duplicate_mint() {
-        let context = get_context(accounts(1));
-        testing_env!(context.build());
-        let mut contract = Contract::new();
-
-        contract.mint(accounts(1), "intent-id".to_string(), 100);
-        contract.mint(accounts(1), "intent-id-2".to_string(), 500);
-    }
-
-    #[test]
-    #[should_panic(expected = "Cannot decrease intent balance")]
-    fn test_decrease_mint() {
-        let context = get_context(accounts(1));
-        testing_env!(context.build());
-        let mut contract = Contract::new();
-
-        contract.mint(accounts(1), "intent-id".to_string(), 100);
-        contract.mint(accounts(1), "intent-id".to_string(), 50);
+        assert_eq!(contract.token.ft_balance_of(accounts(1)).0, 600);
     }
 
     #[test]

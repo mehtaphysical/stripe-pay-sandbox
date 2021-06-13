@@ -1,6 +1,8 @@
 import Stripe from "stripe";
 import { Near, KeyPair } from "near-api-js";
 
+const CONTRACT_ID = process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID;
+
 const keyStore = {
   getKey() {
     return KeyPair.fromString(process.env.NEAR_PRIVATE_KEY);
@@ -21,6 +23,10 @@ export default async (req, res) => {
   const { accountId, paymentMethodId, amount } = req.body;
 
   try {
+    const account = await near.account(
+      process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID
+    );
+
     const intent = await stripe.paymentIntents.create({
       amount,
       currency: "usd",
@@ -33,10 +39,8 @@ export default async (req, res) => {
 
     let outcome = null;
     if (intent.status === "requires_capture" && !intent.next_action) {
-      outcome = await (
-        await near.account(process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID)
-      ).functionCall({
-        contractId: process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID,
+      outcome = await account.functionCall({
+        contractId: CONTRACT_ID,
         methodName: "mint",
         args: {
           account_id: accountId,

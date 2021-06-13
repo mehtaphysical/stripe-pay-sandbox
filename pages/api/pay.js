@@ -14,30 +14,32 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 const near = new Near({
   keyStore,
-  nodeUrl: process.env.NEAR_NODE_URL,
+  nodeUrl: process.env.NEXT_PUBLIC_NEAR_NODE_URL,
 });
 
 export default async (req, res) => {
+  const { accountId, paymentMethodId, amount } = req.body;
+
   try {
     const intent = await stripe.paymentIntents.create({
-      amount: req.body.amount,
+      amount,
       currency: "usd",
       payment_method_types: ["card"],
       capture_method: "manual",
-      payment_method: req.body.paymentMethodId,
+      payment_method: paymentMethodId,
       confirm: true,
-      return_url: process.env.STRIPE_RETURN_URL,
+      return_url: `${process.env.HOST_NAME}/${accountId}/complete`,
     });
 
     let outcome = null;
     if (intent.status === "requires_capture" && !intent.next_action) {
       outcome = await (
-        await near.account(process.env.NEAR_CONTRACT_ID)
+        await near.account(process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID)
       ).functionCall({
-        contractId: process.env.NEAR_CONTRACT_ID,
+        contractId: process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID,
         methodName: "mint",
         args: {
-          account_id: "rnm.testnet",
+          account_id: accountId,
           intent_id: intent.id,
           intent_balance: intent.amount,
         },

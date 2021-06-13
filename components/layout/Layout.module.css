@@ -1,0 +1,8 @@
+.Layout {
+  margin: 1rem auto;
+  padding: 1rem;
+  max-width: 25rem;
+  border-radius: 1rem;
+
+  background-color: white;
+}

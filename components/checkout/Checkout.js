@@ -1,20 +1,18 @@
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
 import { useState } from "react";
-import styles from "../styles/Home.module.css";
+import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { useRouter } from "next/router";
+import styles from "./Checkout.module.css";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY, {
-  stripeAccount: process.env.NEXT_PUBLIC_STRIPE_ACCOUNT_ID,
-});
+const parseAmount = (amount) => {
+  const [whole, decimal = "00"] = amount.split(".");
+  return `${whole}${decimal.slice(0, 2)}`;
+};
 
-function Checkout() {
+export default function Checkout({ accountId }) {
   const stripe = useStripe();
   const elements = useElements();
+
+  const router = useRouter();
 
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,6 +20,7 @@ function Checkout() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setLoading(true);
 
     const card = elements.getElement(CardElement);
 
@@ -38,8 +37,9 @@ function Checkout() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          accountId,
           paymentMethodId: paymentMethod.id,
-          amount: Number(`${amount}00`),
+          amount: parseAmount(amount),
         }),
       });
 
@@ -50,8 +50,10 @@ function Checkout() {
         window.location.assign(json.intent.next_action.redirect_to_url.url);
       }
 
-      // card.clear();
-      // setAmount("");
+      router.push(`/${accountId}/success/${json.outcome.transaction.hash}`);
+
+      card.clear();
+      setAmount("");
     } catch (err) {
       setError(err);
     } finally {
@@ -60,26 +62,17 @@ function Checkout() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className={styles.Checkout} onSubmit={handleSubmit}>
       {error && error.message}
       <input
         type="number"
-        step="1"
+        step="0.01"
+        placeholder="Amount"
         value={amount}
         onChange={({ target }) => setAmount(target.value)}
       />
-      <CardElement />
-      <button disabled={loading}>pay</button>
+      <CardElement className={styles.Input} />
+      <button disabled={loading}>Purchase</button>
     </form>
-  );
-}
-
-export default function Home() {
-  return (
-    <section className={styles.Home}>
-      <Elements stripe={stripePromise}>
-        <Checkout />
-      </Elements>
-    </section>
   );
 }

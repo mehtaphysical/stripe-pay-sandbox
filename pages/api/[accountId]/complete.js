@@ -1,31 +1,23 @@
-import { Near, KeyPair } from "near-api-js";
+import Stripe from "stripe";
+import { mintTokens } from "../../../services/near";
 
-const keyStore = {
-  getKey() {
-    return KeyPair.fromString(process.env.NEAR_PRIVATE_KEY);
-  },
-  setKey() {},
-};
-
-const near = new Near({
-  keyStore,
-  nodeUrl: process.env.NEAR_NODE_URL,
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2020-08-27",
 });
 
 export default async (req, res) => {
-  const { accountId } = req.params;
+  const { accountId, payment_intent: paymentIntentId } = req.query;
 
-  const outcome = await (
-    await near.account(process.env.NEAR_CONTRACT_ID)
-  ).functionCall({
-    contractId: process.env.NEAR_CONTRACT_ID,
-    methodName: "mint",
-    args: {
-      account_id: accountId,
-      intent_id: intent.id,
-      intent_balance: intent.amount,
-    },
-  });
+  const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
-  res.redirect(`/${accountId}/success/${outcome.transaction.hash}`);
+  if (intent.status === "requires_capture" && !intent.next_action) {
+    const outcome = await mintTokens({
+      accountId,
+      intentId: intent.id,
+      amount: intent.amount,
+    });
+    res.redirect(`/${accountId}/success/${outcome.transaction.hash}`);
+  } else {
+    res.redirect("/");
+  }
 };

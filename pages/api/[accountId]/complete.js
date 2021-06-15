@@ -14,7 +14,7 @@ export default async (req, res) => {
     const outcome = await mintTokens({
       accountId,
       intentId: intent.id,
-      amount: intent.amount,
+      amount: intent.amount.toString(),
     });
     res.redirect(`/${accountId}/success/${outcome.transaction.hash}`);
   } else {

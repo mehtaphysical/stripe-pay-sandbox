@@ -48,12 +48,10 @@ export default function Checkout({ accountId }) {
 
       if (json.intent.next_action) {
         window.location.assign(json.intent.next_action.redirect_to_url.url);
+      } else {
+        router.push(`/${accountId}/success/${json.outcome.transaction.hash}`);
       }
 
-      router.push(`/${accountId}/success/${json.outcome.transaction.hash}`);
-
-      card.clear();
-      setAmount("");
     } catch (err) {
       setError(err);
     } finally {

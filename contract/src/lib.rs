@@ -77,6 +77,13 @@ impl Contract {
             .get(&account_id.to_string())
             .unwrap_or(Vec::new());
 
+        assert!(
+            !stripe_intents
+                .iter()
+                .any(|intent| intent.intent_id == intent_id),
+            "Mint already occurred with that intent"
+        );
+
         stripe_intents.push(StripeIntent {
             account_id: account_id.to_string(),
             intent_id,
@@ -133,6 +140,7 @@ impl Contract {
             .internal_unwrap_balance_of(&account_id.to_string());
         let execution_plan = intents
             .iter()
+            .filter(|intent| intent.capture_amount.is_none())
             .map(|intent| {
                 let to_burn = if balance > intent.intent_balance {
                     intent.intent_balance
@@ -398,6 +406,28 @@ mod tests {
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
             [("intent-id-5".to_string(), 5.into())]
+        );
+    }
+
+    #[test]
+    fn test_capture_and_burn_all_multi() {
+        let context = get_context(accounts(1));
+        testing_env!(context.build());
+        let mut contract = Contract::new();
+
+        contract.mint(accounts(1), "intent-id-0".to_string(), 10.into());
+        contract.burn_pending = true;
+
+        assert_eq!(
+            contract.capture_and_burn_all(Some(1)),
+            [("intent-id-0".to_string(), 0.into()),]
+        );
+
+        contract.mint(accounts(1), "intent-id-1".to_string(), 20.into());
+
+        assert_eq!(
+            contract.capture_and_burn_all(Some(1)),
+            [("intent-id-1".to_string(), 0.into()),]
         );
     }
 }

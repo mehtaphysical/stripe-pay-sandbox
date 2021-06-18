@@ -22,11 +22,14 @@ export default async (req, res) => {
         return_url: `${process.env.HOST_NAME}/api/${accountId}/complete`,
       });
 
-      const outcome = await mintTokens({
-        accountId,
-        amount,
-        intentId: intent.id,
-      });
+      let outcome = null;
+      if (intent.status === "succeeded" && !intent.next_action) {
+        outcome = await mintTokens({
+          accountId,
+          amount,
+          intentId: intent.id,
+        });
+      }
 
       res.status(200).json({ intent, outcome });
     } catch (err) {

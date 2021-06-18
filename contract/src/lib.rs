@@ -2,6 +2,7 @@ use near_contract_standards::fungible_token::core::FungibleTokenCore;
 use near_contract_standards::fungible_token::metadata::{
     FungibleTokenMetadata, FungibleTokenMetadataProvider, FT_METADATA_SPEC,
 };
+use near_contract_standards::fungible_token::resolver::FungibleTokenResolver;
 use near_contract_standards::fungible_token::FungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedMap};
@@ -64,6 +65,16 @@ impl Contract {
             intents: UnorderedMap::new(StorageKey::Intents),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
         }
+    }
+
+    pub fn change_marketplace_id(&mut self, marketplace_id: ValidAccountId) {
+        assert_eq!(
+            env::predecessor_account_id(),
+            self.owner_id,
+            "Only owner can change the marketplace"
+        );
+
+        self.marketplace_id = marketplace_id.to_string();
     }
 
     pub fn mint(&mut self, account_id: ValidAccountId, intent_id: String, intent_balance: U128) {
@@ -187,6 +198,7 @@ impl Contract {
         env::panic("Only ft_transfer_call is available".as_bytes());
     }
 
+    #[payable]
     pub fn ft_transfer_call(
         &mut self,
         receiver_id: ValidAccountId,
@@ -200,6 +212,16 @@ impl Contract {
             "Only transfers to the marketplace are allowed"
         );
         self.token.ft_transfer_call(receiver_id, amount, memo, msg)
+    }
+
+    pub fn ft_resolve_transfer(
+        &mut self,
+        sender_id: ValidAccountId,
+        receiver_id: ValidAccountId,
+        amount: U128,
+    ) -> U128 {
+        self.token
+            .ft_resolve_transfer(sender_id, receiver_id, amount)
     }
 
     pub fn ft_total_supply(&self) -> U128 {

@@ -2,6 +2,7 @@ import cors from "cors";
 import Stripe from "stripe";
 import { MongoClient } from "mongodb";
 import { mintTokens } from "../../services/near";
+import { storeContact } from "../../services/contacts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2020-08-27",
@@ -32,20 +33,11 @@ export default async (req, res) => {
         });
       }
 
-      if (email || phoneNumber) {
-        const client = new MongoClient(process.env.MONGODB_URI, {
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
-        });
-        await client.connect();
-        await client.db().collection("contacts").update(
-          {
-            accountId,
-          },
-          { $set: { accountId, email, phoneNumber } },
-          { upsert: true }
-        );
-      }
+      await storeContact({
+        accountId,
+        email,
+        phoneNumber,
+      });
 
       res.status(200).json({ intent, outcome });
     } catch (err) {

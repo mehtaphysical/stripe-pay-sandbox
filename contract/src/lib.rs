@@ -1,3 +1,4 @@
+use near_contract_standards::fungible_token::core::FungibleTokenCore;
 use near_contract_standards::fungible_token::metadata::{
     FungibleTokenMetadata, FungibleTokenMetadataProvider, FT_METADATA_SPEC,
 };
@@ -20,14 +21,14 @@ pub struct StripeIntent {
     account_id: AccountId,
     intent_id: StripeIntentId,
     intent_balance: Balance,
-    capture_amount: Option<Balance>,
+    refund_amount: Option<Balance>,
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
-    burn_pending: bool,
     owner_id: AccountId,
+    marketplace_id: AccountId,
     token: FungibleToken,
     intents: UnorderedMap<AccountId, Vec<StripeIntent>>,
     metadata: LazyOption<FungibleTokenMetadata>,
@@ -43,7 +44,7 @@ enum StorageKey {
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new() -> Self {
+    pub fn new(marketplace_id: ValidAccountId) -> Self {
         assert!(!env::state_exists(), "Already initialized");
 
         let metadata = FungibleTokenMetadata {
@@ -57,8 +58,8 @@ impl Contract {
         };
 
         Self {
-            burn_pending: false,
             owner_id: env::signer_account_id(),
+            marketplace_id: marketplace_id.to_string(),
             token: FungibleToken::new(StorageKey::FT),
             intents: UnorderedMap::new(StorageKey::Intents),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
@@ -88,7 +89,7 @@ impl Contract {
             account_id: account_id.to_string(),
             intent_id,
             intent_balance: intent_balance.into(),
-            capture_amount: None,
+            refund_amount: None,
         });
 
         match self.token.accounts.get(&account_id.to_string()) {
@@ -103,24 +104,6 @@ impl Contract {
             .internal_deposit(&account_id.to_string(), intent_balance.into());
         self.intents
             .insert(&account_id.to_string(), &stripe_intents);
-    }
-
-    pub fn start_burn(&mut self) {
-        assert_eq!(
-            env::predecessor_account_id(),
-            self.owner_id,
-            "Only owner can start burn"
-        );
-        self.burn_pending = true;
-    }
-
-    pub fn complete_burn(&mut self) {
-        assert_eq!(
-            env::predecessor_account_id(),
-            self.owner_id,
-            "Only owner can complete burn"
-        );
-        self.burn_pending = false;
     }
 
     pub fn capture_and_burn_for(&mut self, account_id: String) -> Vec<(String, U128)> {
@@ -140,7 +123,7 @@ impl Contract {
             .internal_unwrap_balance_of(&account_id.to_string());
         let execution_plan = intents
             .iter()
-            .filter(|intent| intent.capture_amount.is_none())
+            .filter(|intent| intent.refund_amount.is_none())
             .map(|intent| {
                 let to_burn = if balance > intent.intent_balance {
                     intent.intent_balance
@@ -154,7 +137,7 @@ impl Contract {
                     account_id: intent.account_id.to_string(),
                     intent_id: intent.intent_id.to_string(),
                     intent_balance: intent.intent_balance,
-                    capture_amount: Some(intent.intent_balance - to_burn),
+                    refund_amount: Some(to_burn),
                 }
             })
             .collect();
@@ -169,7 +152,7 @@ impl Contract {
             .map(|intent| {
                 (
                     intent.intent_id.to_string(),
-                    U128(intent.capture_amount.unwrap_or(0)),
+                    U128(intent.refund_amount.unwrap_or(0)),
                 )
             })
             .collect()
@@ -181,14 +164,13 @@ impl Contract {
             self.owner_id,
             "Only owner can execute burn"
         );
-        assert!(self.burn_pending, "Burn hasn't started yet");
 
         let limit = limit.unwrap_or(10);
 
         let capturable_account_ids: Vec<String> = self
             .intents
             .iter()
-            .filter(|(_, intents)| intents.iter().any(|intent| intent.capture_amount.is_none()))
+            .filter(|(_, intents)| intents.iter().any(|intent| intent.refund_amount.is_none()))
             .map(|(account_id, _)| account_id)
             .take(limit as usize)
             .collect();
@@ -200,9 +182,35 @@ impl Contract {
 
         intents_to_capture
     }
+
+    pub fn ft_transfer(&mut self, receiver_id: ValidAccountId, amount: U128, memo: Option<String>) {
+        env::panic("Only ft_transfer_call is available".as_bytes());
+    }
+
+    pub fn ft_transfer_call(
+        &mut self,
+        receiver_id: ValidAccountId,
+        amount: U128,
+        memo: Option<String>,
+        msg: String,
+    ) -> PromiseOrValue<U128> {
+        assert_eq!(
+            receiver_id.to_string(),
+            self.marketplace_id,
+            "Only transfers to the marketplace are allowed"
+        );
+        self.token.ft_transfer_call(receiver_id, amount, memo, msg)
+    }
+
+    pub fn ft_total_supply(&self) -> U128 {
+        self.token.ft_total_supply()
+    }
+
+    pub fn ft_balance_of(&self, account_id: ValidAccountId) -> U128 {
+        self.token.ft_balance_of(account_id)
+    }
 }
 
-near_contract_standards::impl_fungible_token_core!(Contract, token);
 near_contract_standards::impl_fungible_token_storage!(Contract, token);
 
 #[near_bindgen]
@@ -234,7 +242,7 @@ mod tests {
     fn test_new() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let contract = Contract::new();
+        let contract = Contract::new(accounts(3));
         testing_env!(context.is_view(true).build());
         assert_eq!(contract.owner_id, accounts(1).to_string());
     }
@@ -251,7 +259,7 @@ mod tests {
     fn test_mint() {
         let context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = Contract::new();
+        let mut contract = Contract::new(accounts(3));
 
         contract.mint(accounts(1), "intent-id".to_string(), 100.into());
 
@@ -285,7 +293,7 @@ mod tests {
     fn test_ft_transfer() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = Contract::new();
+        let mut contract = Contract::new(accounts(1));
 
         contract.mint(accounts(0), "intent-id".to_string(), 100.into());
 
@@ -311,7 +319,19 @@ mod tests {
     fn test_capture_and_burn_all() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = Contract::new();
+        let mut contract = Contract::new(accounts(3));
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(3))
+            .build());
+        contract.storage_deposit(None, None);
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(0)
+            .predecessor_account_id(accounts(1))
+            .build());
 
         contract.mint(accounts(0), "intent-id-0".to_string(), 10.into());
 
@@ -328,23 +348,21 @@ mod tests {
             .predecessor_account_id(accounts(1))
             .build());
 
-        contract.ft_transfer(accounts(0), 45.into(), None);
-
-        contract.burn_pending = true;
+        contract.ft_transfer(accounts(3), 45.into(), None);
 
         assert_eq!(
             contract.capture_and_burn_for(accounts(2).to_string()),
-            [("intent-id-5".to_string(), 0.into())]
+            [("intent-id-5".to_string(), 50.into())]
         );
 
         assert_eq!(
             contract.capture_and_burn_all(None),
             [
-                ("intent-id-0".to_string(), 0.into()),
-                ("intent-id-1".to_string(), 0.into()),
-                ("intent-id-2".to_string(), 5.into()),
-                ("intent-id-3".to_string(), 20.into()),
-                ("intent-id-4".to_string(), 20.into()),
+                ("intent-id-0".to_string(), 10.into()),
+                ("intent-id-1".to_string(), 10.into()),
+                ("intent-id-2".to_string(), 15.into()),
+                ("intent-id-3".to_string(), 0.into()),
+                ("intent-id-4".to_string(), 0.into()),
             ]
         );
     }
@@ -353,7 +371,19 @@ mod tests {
     fn test_capture_and_burn_all_paged() {
         let mut context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = Contract::new();
+        let mut contract = Contract::new(accounts(3));
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(3))
+            .build());
+        contract.storage_deposit(None, None);
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(0)
+            .predecessor_account_id(accounts(1))
+            .build());
 
         contract.mint(accounts(0), "intent-id-0".to_string(), 10.into());
 
@@ -370,7 +400,7 @@ mod tests {
             .predecessor_account_id(accounts(1))
             .build());
 
-        contract.ft_transfer(accounts(0), 45.into(), None);
+        contract.ft_transfer(accounts(3), 45.into(), None);
 
         testing_env!(context
             .storage_usage(env::storage_usage())
@@ -378,9 +408,7 @@ mod tests {
             .predecessor_account_id(accounts(2))
             .build());
 
-        contract.ft_transfer(accounts(1), 5.into(), None);
-
-        contract.burn_pending = true;
+        contract.ft_transfer(accounts(3), 5.into(), None);
 
         testing_env!(context
             .storage_usage(env::storage_usage())
@@ -390,22 +418,22 @@ mod tests {
 
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
-            [("intent-id-0".to_string(), 0.into()),]
+            [("intent-id-0".to_string(), 10.into()),]
         );
 
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
             [
-                ("intent-id-1".to_string(), 0.into()),
-                ("intent-id-2".to_string(), 0.into()),
-                ("intent-id-3".to_string(), 20.into()),
-                ("intent-id-4".to_string(), 20.into()),
+                ("intent-id-1".to_string(), 10.into()),
+                ("intent-id-2".to_string(), 15.into()),
+                ("intent-id-3".to_string(), 0.into()),
+                ("intent-id-4".to_string(), 0.into()),
             ]
         );
 
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
-            [("intent-id-5".to_string(), 5.into())]
+            [("intent-id-5".to_string(), 45.into())]
         );
     }
 
@@ -413,21 +441,20 @@ mod tests {
     fn test_capture_and_burn_all_multi() {
         let context = get_context(accounts(1));
         testing_env!(context.build());
-        let mut contract = Contract::new();
+        let mut contract = Contract::new(accounts(3));
 
         contract.mint(accounts(1), "intent-id-0".to_string(), 10.into());
-        contract.burn_pending = true;
 
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
-            [("intent-id-0".to_string(), 0.into()),]
+            [("intent-id-0".to_string(), 10.into()),]
         );
 
         contract.mint(accounts(1), "intent-id-1".to_string(), 20.into());
 
         assert_eq!(
             contract.capture_and_burn_all(Some(1)),
-            [("intent-id-1".to_string(), 0.into()),]
+            [("intent-id-1".to_string(), 20.into()),]
         );
     }
 }

@@ -23,7 +23,7 @@ export default async (req, res) => {
       });
 
       let outcome = null;
-      if (intent.status === "requires_capture" && !intent.next_action) {
+      if (intent.status === "succeeded" && !intent.next_action) {
         outcome = await mintTokens({
           accountId,
           amount,

@@ -194,8 +194,14 @@ impl Contract {
         intents_to_capture
     }
 
+    #[payable]
     pub fn ft_transfer(&mut self, receiver_id: ValidAccountId, amount: U128, memo: Option<String>) {
-        env::panic("Only ft_transfer_call is available".as_bytes());
+        assert_eq!(
+            env::predecessor_account_id(),
+            self.marketplace_id,
+            "Only transfers to the marketplace are allowed"
+        );
+        self.token.ft_transfer(receiver_id, amount, memo)
     }
 
     #[payable]

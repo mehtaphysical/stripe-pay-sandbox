@@ -35,7 +35,7 @@ fi
 
 # Build contract
 cd contract
-cargo build --all --target wasm32-unknown-unknown --release
+env 'RUSTFLAGS=-C link-arg=-s' cargo build --target wasm32-unknown-unknown --release
 
 # Create contract if necessary
 if [[ $CREATE_ACCOUNT == "yes" ]]; then

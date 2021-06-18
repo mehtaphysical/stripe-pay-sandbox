@@ -1,3 +1,5 @@
+import { MongoClient } from "mongodb";
+
 const validateEmail = (email) => {
   return email && email.length < 1024;
 };

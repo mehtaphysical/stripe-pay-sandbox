@@ -1,6 +1,5 @@
 import cors from "cors";
 import Stripe from "stripe";
-import { MongoClient } from "mongodb";
 import { mintTokens } from "../../services/near";
 import { storeContact } from "../../services/contacts";
 
@@ -41,6 +40,7 @@ export default async (req, res) => {
 
       res.status(200).json({ intent, outcome });
     } catch (err) {
+      console.log(err);
       res.status(400).json(err);
     }
   });

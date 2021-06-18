@@ -11,17 +11,16 @@ export default async (req, res) => {
     const { accountId, paymentMethodId, amount } = req.body;
 
     try {
-      const intent = {};
-      // const intent = await stripe.paymentIntents.create({
-      //   amount,
-      //   currency: "usd",
-      //   description: `Mint tokens for ${accountId}`,
-      //   payment_method_types: ["card"],
-      //   capture_method: "automatic",
-      //   payment_method: paymentMethodId,
-      //   confirm: true,
-      //   return_url: `${process.env.HOST_NAME}/api/${accountId}/complete`,
-      // });
+      const intent = await stripe.paymentIntents.create({
+        amount,
+        currency: "usd",
+        description: `Mint tokens for ${accountId}`,
+        payment_method_types: ["card"],
+        capture_method: "automatic",
+        payment_method: paymentMethodId,
+        confirm: true,
+        return_url: `${process.env.HOST_NAME}/api/${accountId}/complete`,
+      });
 
       let outcome = null;
       if (intent.status === "succeeded" && !intent.next_action) {

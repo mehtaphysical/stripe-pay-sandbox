@@ -9,7 +9,7 @@ const validatePhoneNumber = (phoneNumber) => {
 };
 
 export const storeContact = async ({ accountId, email, phoneNumber }) => {
-  const updateObj = {};
+  const updateObj = { accountId };
   if (validateEmail(email)) updateObj.email = email;
   if (validatePhoneNumber(phoneNumber)) updateObj.phoneNumber = phoneNumber;
 

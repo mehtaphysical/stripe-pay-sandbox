@@ -15,6 +15,8 @@ export default function Checkout({ accountId }) {
   const router = useRouter();
 
   const [amount, setAmount] = useState("");
+  const [email, setEmail] = useState();
+  const [phoneNumber, setPhoneNumber] = useState();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState();
 
@@ -40,6 +42,8 @@ export default function Checkout({ accountId }) {
           accountId,
           paymentMethodId: paymentMethod.id,
           amount: parseAmount(amount),
+          email,
+          phoneNumber,
         }),
       });
 
@@ -61,6 +65,12 @@ export default function Checkout({ accountId }) {
   return (
     <form className={styles.Checkout} onSubmit={handleSubmit}>
       {error && error.message}
+      <input type="email" placeholder="email" onChange={({ target }) => setEmail(target.value)} />
+      <input
+        type="text"
+        placeholder="phone number"
+        onChange={({ target }) => setPhoneNumber(target.value)}
+      />
       <input
         type="number"
         step="0.01"

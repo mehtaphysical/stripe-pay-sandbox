@@ -6,18 +6,24 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 });
 
 export default async (req, res) => {
-  const { accountId, payment_intent: paymentIntentId } = req.query;
+  const { accountId, paymentIntentId, paymentIntentSecret } = req.body;
 
-  const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  try {
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (intent.client_secret !== paymentIntentSecret)
+      throw new Error("Secrets do not match");
+    if (intent.description !== `Mint tokens for ${accountId}`)
+      throw new Error("PaymentIntent not for accountId");
 
-  if (intent.status === "requires_capture" && !intent.next_action) {
     const outcome = await mintTokens({
       accountId,
       intentId: intent.id,
       amount: intent.amount.toString(),
     });
-    res.redirect(`/${accountId}/success/${outcome.transaction.hash}`);
-  } else {
-    res.redirect("/");
+
+    res.send(outcome);
+  } catch (err) {
+    console.log(err);
+    res.status(400).send({ error: err.message });
   }
 };

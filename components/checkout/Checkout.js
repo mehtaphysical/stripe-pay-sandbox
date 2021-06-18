@@ -47,11 +47,10 @@ export default function Checkout({ accountId }) {
       if (res.status !== 200) throw json;
 
       if (json.intent.next_action) {
-        window.location.assign(json.intent.next_action.redirect_to_url.url);
+        window.open(json.intent.next_action.redirect_to_url.url);
       } else {
         router.push(`/${accountId}/success/${json.outcome.transaction.hash}`);
       }
-
     } catch (err) {
       setError(err);
     } finally {

@@ -1,24 +1,42 @@
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
-import Layout from "../../../components/layout/Layout";
 
 export default function Success() {
   const router = useRouter();
-  const { accountId, transactionHash } = router.query;
+  const { accountId, payment_intent, payment_intent_client_secret } =
+    router.query;
+
+  const [success, setSuccess] = useState();
+  const [error, setError] = useState();
 
   useEffect(() => {
-    window.parent.postMessage("Success", "*");
-  }, []);
+    if (!accountId) return;
 
-  if (!accountId) return null;
+    fetch(`/api/${accountId}/complete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        accountId,
+        paymentIntentId: payment_intent,
+        paymentIntentSecret: payment_intent_client_secret,
+      }),
+    })
+      .then((res) => Promise.all([res.ok, res.json()]))
+      .then(([ok, json]) => {
+        if (!ok) throw json;
+        setSuccess(true);
+      })
+      .catch(({ error }) => setError(error))
+      .finally(() => window.close());
+  }, [accountId]);
 
-  return (
-    <Layout accountId={accountId}>
-      <a
-        href={`${process.env.NEXT_PUBLIC_NEAR_EXPLORER_URL}/transactions/${transactionHash}`}
-      >
-        Transaction Status
-      </a>
-    </Layout>
-  );
+  if (success)
+    return <h1>Credits were added successfully. You can close this window</h1>;
+  else if (error)
+    return (
+      <h1>Something happened while trying to create your credits: {error}</h1>
+    );
+  else return <h1>Loading</h1>;
 }

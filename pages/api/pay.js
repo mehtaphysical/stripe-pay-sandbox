@@ -19,7 +19,7 @@ export default async (req, res) => {
         capture_method: "automatic",
         payment_method: paymentMethodId,
         confirm: true,
-        return_url: `${process.env.HOST_NAME}/api/${accountId}/complete`,
+        return_url: `${process.env.HOST_NAME}/${accountId}/success/process`,
       });
 
       let outcome = null;

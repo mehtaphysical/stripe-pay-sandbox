@@ -53,7 +53,7 @@ export default function Checkout({ accountId }) {
       if (json.intent.next_action) {
         window.open(json.intent.next_action.redirect_to_url.url);
       } else {
-        router.push(`/${accountId}/success/${json.outcome.transaction.hash}`);
+        router.reload()
       }
     } catch (err) {
       setError(err);

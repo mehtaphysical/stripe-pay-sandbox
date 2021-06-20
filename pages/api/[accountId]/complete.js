@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { mintTokens } from "../../../services/near";
+import { handleIntent } from "../../../services/near";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2020-08-27",
@@ -15,7 +15,7 @@ export default async (req, res) => {
     if (intent.description !== `Mint tokens for ${accountId}`)
       throw new Error("PaymentIntent not for accountId");
 
-    const outcome = await mintTokens({
+    const outcome = await handleIntent({
       accountId,
       intentId: intent.id,
       amount: intent.amount.toString(),

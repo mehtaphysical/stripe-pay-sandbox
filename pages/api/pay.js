@@ -1,6 +1,6 @@
 import cors from "cors";
 import Stripe from "stripe";
-import { mintTokens } from "../../services/near";
+import { handleIntent } from "../../services/near";
 import { storeContact } from "../../services/contacts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -25,7 +25,7 @@ export default async (req, res) => {
 
       let outcome = null;
       if (intent.status === "succeeded" && !intent.next_action) {
-        outcome = await mintTokens({
+        outcome = await handleIntent({
           accountId,
           amount,
           intentId: intent.id,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { useRouter } from "next/router";
 import styles from "./Checkout.module.css";
+import { KeyPair } from "near-api-js";
 
 const parseAmount = (amount) => {
   const [whole, decimal = "00"] = amount.split(".");
@@ -33,7 +34,7 @@ export default function Checkout({ accountId }) {
       });
       if (error) throw error;
 
-      const res = await fetch("/api/pay", {
+      const res = await fetch("https://stripe-nft-hip-hop.vercel.app/api/pay", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -44,6 +45,7 @@ export default function Checkout({ accountId }) {
           amount: parseAmount(amount),
           email,
           phoneNumber,
+          publicKey: KeyPair.fromRandom("ed25519").getPublicKey().toString(),
         }),
       });
 

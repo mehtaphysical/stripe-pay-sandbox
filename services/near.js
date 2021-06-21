@@ -1,8 +1,8 @@
 import { Near, KeyPair, utils } from "near-api-js";
 import BN from "bn.js";
 
-const MIN_BALANCE = new BN(utils.format.parseNearAmount("0.01"));
-const FILL_AMOUNT = new BN(utils.format.parseNearAmount("0.05"));
+const MIN_BALANCE = new BN(utils.format.parseNearAmount("0.02"));
+const FILL_AMOUNT = new BN(utils.format.parseNearAmount("0.1"));
 
 const CREATE_ACCOUNT_CONTRACT_ID = process.env.CREATE_ACCOUNT_CONTRACT_ID;
 const CONTRACT_ID = process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID;

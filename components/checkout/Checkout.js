@@ -53,7 +53,7 @@ export default function Checkout({ accountId }) {
       if (json.intent.next_action) {
         window.open(json.intent.next_action.redirect_to_url.url);
       } else {
-        router.reload()
+        router.reload();
       }
     } catch (err) {
       setError(err);
@@ -65,7 +65,11 @@ export default function Checkout({ accountId }) {
   return (
     <form className={styles.Checkout} onSubmit={handleSubmit}>
       {error && error.message}
-      <input type="email" placeholder="email" onChange={({ target }) => setEmail(target.value)} />
+      <input
+        type="email"
+        placeholder="email"
+        onChange={({ target }) => setEmail(target.value)}
+      />
       <input
         type="text"
         placeholder="phone number"

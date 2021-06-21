@@ -4,6 +4,7 @@ import BN from "bn.js";
 const MIN_BALANCE = new BN(utils.format.parseNearAmount("0.02"));
 const FILL_AMOUNT = new BN(utils.format.parseNearAmount("0.1"));
 
+const MIN_CREDIT_AMOUNT = 4701;
 const CREATE_ACCOUNT_CONTRACT_ID = process.env.CREATE_ACCOUNT_CONTRACT_ID;
 const CONTRACT_ID = process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID;
 
@@ -32,7 +33,9 @@ const refill = async (accountId) => {
   return account.sendMoney(accountId, FILL_AMOUNT);
 };
 
-const needsAccountCreation = async (accountId) => {
+const needsAccountCreation = async ({ accountId, amount }) => {
+  if (Number(amount) < MIN_CREDIT_AMOUNT)
+    throw new Error("Amount must be over $47");
   try {
     const account = await near.account(accountId);
     await account.state();
@@ -86,7 +89,7 @@ export const handleIntent = async ({
   intentId,
   amount,
 }) => {
-  if (publicKey && (await needsAccountCreation(accountId))) {
+  if (publicKey && (await needsAccountCreation({ accountId, amount }))) {
     await createAccount({ accountId, publicKey });
   }
 

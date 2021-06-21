@@ -3,8 +3,6 @@ import Stripe from "stripe";
 import { handleIntent } from "../../services/near";
 import { storeContact } from "../../services/contacts";
 
-const MIN_CREDIT_AMOUNT = 4701;
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2020-08-27",
 });
@@ -25,9 +23,6 @@ export default async (req, res) => {
 
   let intent;
   try {
-    if (Number(amount) < MIN_CREDIT_AMOUNT)
-      throw new Error("Amount must be over $47");
-
     intent = await stripe.paymentIntents.create({
       amount,
       currency: "usd",
@@ -70,6 +65,6 @@ export default async (req, res) => {
     ) {
       await stripe.paymentIntents.cancel(intent.id);
     }
-    res.status(400).json(err);
+    res.status(400).json({ error: err.message });
   }
 };

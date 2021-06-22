@@ -1,11 +1,11 @@
 import cors from "cors";
-import Stripe from "stripe";
 import { handleIntent } from "../../services/near";
 import { storeContact } from "../../services/contacts";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2020-08-27",
-});
+import {
+  cancelIntent,
+  captureIntent,
+  createIntent,
+} from "../../services/stripe";
 
 const corsPromise = (req, res) => {
   return new Promise((resolve, reject) => {
@@ -23,16 +23,7 @@ export default async (req, res) => {
 
   let intent;
   try {
-    intent = await stripe.paymentIntents.create({
-      amount,
-      currency: "usd",
-      description: `Mint tokens for ${accountId}`,
-      payment_method_types: ["card"],
-      capture_method: "manual",
-      payment_method: paymentMethodId,
-      confirm: true,
-      return_url: `${process.env.HOST_NAME}/${accountId}/success/process`,
-    });
+    intent = await createIntent({ accountId, paymentMethodId, amount });
 
     let outcome = null;
     if (intent.status === "requires_capture" && !intent.next_action) {
@@ -42,7 +33,7 @@ export default async (req, res) => {
         amount,
         intentId: intent.id,
       });
-      await stripe.paymentIntents.capture(intent.id);
+      await captureIntent(intent);
     }
 
     await storeContact({
@@ -63,8 +54,8 @@ export default async (req, res) => {
         )
       )
     ) {
-      await stripe.paymentIntents.cancel(intent.id);
+      await cancelIntent(intent);
     }
-    res.status(400).json({ error: err.message });
+    res.status(400).send(err);
   }
 };

@@ -1,20 +1,29 @@
-import Stripe from "stripe";
 import { handleIntent } from "../../../services/near";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2020-08-27",
-});
+import {
+  cancelIntent,
+  captureIntent,
+  getIntent,
+} from "../../../services/stripe";
 
 export default async (req, res) => {
   const { accountId, paymentIntentId, paymentIntentSecret } = req.body;
 
   let intent;
   try {
-    intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (intent.client_secret !== paymentIntentSecret)
-      throw new Error("Secrets do not match");
-    if (intent.description !== `Mint tokens for ${accountId}`)
-      throw new Error("PaymentIntent not for accountId");
+    intent = await getIntent(paymentIntentId);
+    if (intent.client_secret !== paymentIntentSecret) {
+      throw {
+        type: "STRIPE_CLIENT_SECRET_ERROR",
+        message: "Secrets do not match",
+      };
+    }
+
+    if (intent.description !== `Mint tokens for ${accountId}`) {
+      throw {
+        type: "STRIPE_CLIENT_SECRET_ERROR",
+        message: "PaymentIntent not for accountId",
+      };
+    }
 
     let outcome;
     if (intent.status === "requires_capture") {
@@ -23,9 +32,9 @@ export default async (req, res) => {
         intentId: intent.id,
         amount: intent.amount.toString(),
       });
-      await stripe.paymentIntents.capture(intent.id);
+      await captureIntent(intent);
     } else {
-      await stripe.paymentIntents.cancel(intent.id);
+      await cancelIntent(intent);
     }
 
     res.send(outcome);
@@ -39,8 +48,8 @@ export default async (req, res) => {
         )
       )
     ) {
-      await stripe.paymentIntents.cancel(intent.id);
+      await cancelIntent(intent);
     }
-    res.status(400).send({ error: err.message });
+    res.status(400).send(err);
   }
 };

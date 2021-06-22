@@ -34,7 +34,7 @@ export default function Checkout({ accountId }) {
       });
       if (error) throw error;
 
-      const res = await fetch("https://stripe-nft-hip-hop.vercel.app/api/pay", {
+      const res = await fetch("/api/pay", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
